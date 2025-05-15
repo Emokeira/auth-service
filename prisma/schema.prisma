@@ -21,3 +21,8 @@ model User {
   role      String    @default("user")
   createdAt DateTime  @default(now())
 }
+
+enum Role {
+  USER
+  ADMIN
+}
