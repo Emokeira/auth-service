@@ -1,8 +1,14 @@
-const express = require("express")
+const express = require('express');
+const dotenv = require('dotenv');
+const helmet = require('helmet'); // ✅ correct usage with require
+
+dotenv.config();
+
 const app = express();
-const port = 5000;
+app.use(helmet());
 
+const PORT = process.env.PORT || 5000;
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost${port}`)
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
