@@ -1,8 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prisma");
-const { authenticateToken, authorizeRoles } = require("../middleware/authMiddleware");
+const jwt = require("jsonwebtoken");
+const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -24,16 +24,20 @@ router.post('/signup', async (req, res) => {
                 fullname,
                 email,
                 password: hashedPassword,
-                role: (role || 'USER').toUpperCase(),
+                role: (role || 'USER').toUpperCase(),  // ✅ Save role in uppercase
             },
         });
 
         res.status(201).json({
             message: 'User created successfully',
-            user: { id: user.id, email: user.email, role: user.role }
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role
+            }
         });
     } catch (error) {
-        console.error("Signup error:", error);
+        console.error(error);
         res.status(500).json({ error: 'Signup failed' });
     }
 });
@@ -50,32 +54,53 @@ router.post('/login', async (req, res) => {
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
+
         if (!isPasswordValid) {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        // ✅ Correct role is included here in the token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
         );
 
-        res.status(200).json({ message: 'Login successful', token });
+        res.status(200).json({
+            message: 'Login successful',
+            token
+        });
     } catch (error) {
-        console.error("Login error:", error);
+        console.error(error);
         res.status(500).json({ error: 'Login failed' });
     }
 });
 
-// GET /auth/admin (protected route)
-router.get('/admin', authenticateToken, authorizeRoles('ADMIN'), (req, res) => {
-    res.json({ message: `Welcome Admin: ${req.user.email}` });
+// GET /auth/me (Requires valid token)
+router.get('/me', authenticateToken, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { id: true, fullname: true, email: true, role: true },
+        });
+
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        res.json(user);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch user info' });
+    }
 });
 
-// GET /auth/me (for debugging)
-router.get('/me', authenticateToken, (req, res) => {
-    res.json({ user: req.user });
+// GET /auth/admin (ADMIN or MODERATOR only)
+router.get('/admin', authenticateToken, authorizeRoles('ADMIN', 'MODERATOR'), (req, res) => {
+    res.json({ message: `Welcome ${req.user.role}: ${req.user.email}` });
 });
 
+// GET /auth/dashboard
+router.get('/dashboard', authenticateToken, authorizeRoles('ADMIN', 'MODERATOR'), (req, res) => {
+    res.json({ message: `Hello ${req.user.role}, welcome to your dashboard.` });
+});
+
+// Export the router
 module.exports = router;

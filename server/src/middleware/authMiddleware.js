@@ -1,43 +1,26 @@
 const jwt = require("jsonwebtoken");
 
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  if (!authHeader) {
-    return res.status(401).json({ error: "No token provided" });
-  }
+    if (!token) return res.status(401).json({ error: 'Access token missing' });
 
-  const token = authHeader.split(" ")[1]; // Bearer <token>
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Invalid token' });
 
-  if (!token) {
-    return res.status(401).json({ error: "No token provided" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid token" });
-  }
+        req.user = user;
+        next();
+    });
 }
 
-// ✅ Role-checking middleware
 function authorizeRoles(...allowedRoles) {
-  return (req, res, next) => {
-    const userRole = req.user?.role?.toUpperCase();
-
-    console.log("User role:", userRole);
-    console.log("Allowed roles:", allowedRoles);
-
-    if (!userRole || !allowedRoles.includes(userRole)) {
-      return res.status(403).json({ error: "Forbidden: Insufficient role" });
-    }
-    next();
-  };
+    return (req, res, next) => {
+        if (!req.user || !allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        next();
+    };
 }
 
-module.exports = {
-  authenticateToken,
-  authorizeRoles,
-};
+module.exports = { authenticateToken, authorizeRoles };
