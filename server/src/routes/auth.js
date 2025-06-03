@@ -24,7 +24,7 @@ router.post('/signup', async (req, res) => {
                 fullname,
                 email,
                 password: hashedPassword,
-                role: (role || 'USER').toUpperCase(),  // ✅ Save role in uppercase
+                role: (role || 'USER').toUpperCase(), // Default to USER, ensure uppercase
             },
         });
 
@@ -33,7 +33,7 @@ router.post('/signup', async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                role: user.role
+                role: user.role,
             }
         });
     } catch (error) {
@@ -75,7 +75,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// GET /auth/me (Requires valid token)
+// GET /auth/me
 router.get('/me', authenticateToken, async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
@@ -92,15 +92,32 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
 });
 
-// GET /auth/admin (ADMIN or MODERATOR only)
+// GET /auth/admin (ADMIN or MODERATOR)
 router.get('/admin', authenticateToken, authorizeRoles('ADMIN', 'MODERATOR'), (req, res) => {
     res.json({ message: `Welcome ${req.user.role}: ${req.user.email}` });
 });
 
-// GET /auth/dashboard
+// GET /auth/dashboard (ADMIN or MODERATOR)
 router.get('/dashboard', authenticateToken, authorizeRoles('ADMIN', 'MODERATOR'), (req, res) => {
     res.json({ message: `Hello ${req.user.role}, welcome to your dashboard.` });
 });
 
-// Export the router
+// ✅ NEW: GET /auth/users (ADMIN only)
+router.get('/users', authenticateToken, authorizeRoles('ADMIN'), async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            select: {
+                fullname: true,
+                email: true,
+                role: true,
+            }
+        });
+
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Failed to retrieve users' });
+    }
+});
+
 module.exports = router;
